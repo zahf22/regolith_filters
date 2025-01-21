@@ -6,5 +6,6 @@
             "script": "./main.py",
             "name": "Generates Files"
         }
-    ]
+    ],
+    "version": "1.0.0"
 }
