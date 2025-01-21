@@ -5,7 +5,7 @@
             "runWith": "python",
             "script": "./main.py",
             "name": "Generates Files"
-        }
-    ],
-    "version": "1.0.0"
+        },
+        "name": "Generate Scripts for attack"
+    ]
 }
