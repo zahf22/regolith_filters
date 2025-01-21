@@ -1,0 +1,10 @@
+{
+    "description": "Generates Files",
+    "filters": [
+        {
+            "runWith": "python",
+            "script": "./main.py",
+            "name": "Generates Files"
+        }
+    ]
+}
