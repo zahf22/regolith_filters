@@ -38,7 +38,7 @@ def to_camel_case(s):
 
 def generate_attack_config(attack):
     """Generate configuration block for an attack."""
-    excluded_keys = {"min_activation_range", "max_activation_range"}
+    excluded_keys = {"min_activation_range", "max_activation_range", "attack_type"}
     config_lines = []
     
     config_key = None
@@ -51,12 +51,12 @@ def generate_attack_config(attack):
             config_key = value.upper()
             continue
 
-        if key == "damage" and isinstance(value, list):
+        if key == "damage_range" and isinstance(value, list):
             # Ensure damage is represented as a proper array in the output
             config_value = f"[{', '.join(map(str, value))}]"
         elif isinstance(value, (int, float)):
             # Handle numeric values, including multiplication for durations
-            config_value = int(value * 20) if key in {"cast_duration", "tip_duration"} else value
+            config_value = int(value * 20) if key in {"cast_duration", "tip_duration", "attack_time"} else value
         else:
             # Convert other types to strings
             config_value = f'"{value}"'
@@ -73,19 +73,93 @@ def generate_attack_config(attack):
 {config_body}
     }}"""
 
-
 def generate_switch_case(entity_name, attack_id):
     """Generate switch case for an attack."""
-    return f"""        case `${{maps.identifier}}:{attack_id}`:
-            {entity_name}{to_camel_case(attack_id)}(entity);
-            break;"""
+    return f"""    [identifier('{attack_id}'), {entity_name}{to_camel_case(attack_id)}]"""
 
-def generate_function_template(entity_name, attack_id):
-    """Generate function template for an attack."""
-    return f"""export async function {entity_name}{to_camel_case(attack_id)}(entity) {{
-    const config = {entity_name.upper()}_CONFIG.{attack_id.upper()};
-    // Add your attack logic here
-}}"""
+def to_camel_case(snake_str):
+    """Convert snake_case to CamelCase."""
+    components = snake_str.split('_')
+    return ''.join(x.title() for x in components)
+
+def generate_function_template(entity_name, attack_id, template_type):
+    """Generate function template for an attack based on the template type."""
+    templates = {
+        "basic": f"""
+export async function {to_camel_case(entity_name)}{to_camel_case(attack_id)}(entity) {{
+    const config = {to_camel_case(entity_name).upper()}_CONFIG.{attack_id.upper()};
+    const damage = utils.randomInt(...config.DAMAGE_RANGE);
+    utils.delayExecute(config.CAST_DURATION, () => {{
+        utils.executeIfValid(entity, () => {{
+        utils.resetAndReadyAbility(entity);
+        }});
+    }});
+    utils.resetFamilyAttack(entity, ['{entity_name}']);
+    utils.executeIfValid(entity, () => {{
+      entity.setProperty(utils.identifier('animations'), config.ANIMATION);
+    }});
+    utils.facePlayer(entity, 1);
+
+    const victims = utils.getRadiusEntity(entity, utils.getPosForward(entity, 2), config.RADIUS);
+    
+    utils.delayExecute(config.ATTACK_TIME, () => {{
+        utils.executeIfValid(entity, () => {{
+            for (let victim of victims) {{
+                if (victim.id === entity.id) return;
+                victim.applyDamage(damage, {{ cause: EntityDamageCause.entityAttack, damagingEntity: entity, }})
+                utils.normalizedKnockBack(entity.location, victim, 0.3, 2.6, 'right');
+            }}
+        }});
+    }});
+}}
+""",
+        "courotine": f"""
+export async function {to_camel_case(entity_name)}{to_camel_case(attack_id)}(entity) {{
+    const config = {to_camel_case(entity_name).upper()}_CONFIG.{attack_id.upper()};
+    utils.tipPlayer(entity, config.TIP_DURATION, config.TIP_MESSAGE);
+    utils.facePlayer(entity, 1);
+
+    utils.resetFamilyAttack(entity, ['{entity_name}']);
+
+    let active = function* () {{
+        utils.facePlayer(entity, 1);
+        yield 5;
+        utils.executeIfValid(entity, () => {{
+            entity.setProperty(utils.identifier('animations'), config.ANIMATION);
+        }});
+        utils.facePlayer(entity, (0.56 * 20));
+        yield (0.56 * 20);
+        utils.applyImpulse(entity, 1.3, 8.2, -6);
+        const victims = utils.getRadiusEntity(entity, utils.getPosForward(entity, 2), config.RADIUS + 3);
+        for (let victim of victims) {{
+            if (victim.id === entity.id) return;
+            utils.normalizedKnockBack(entity.location, victim, 0.2, 1.7, 'default');
+        }}
+        utils.addEffect(entity, 'slow_falling', 3, 1);
+        yield 20;
+        while (!entity.isOnGround) {{
+            utils.applyImpulse(entity, 0.5, -0.4, -0.1);
+            utils.addEffect(entity, 'slow_falling', 1, 1);
+            utils.facePlayer(entity, 1);
+            yield 5; // Pause for 5 tick before re-checking
+        }};
+
+        yield (2.96 * 20);
+        if (!entity.isValid()) return;
+        entity.addTag(utils.identifier('{attack_id}'));
+        const setCoolDown = Date.now() + 100 * config.CAST_DURATION + config.COOLDOWN;
+        utils.setAbilityCooldown(entity.id, '{attack_id}', setCoolDown);
+    }}.bind(this);
+
+    startCoroutineForBoss(active, () => {{
+        utils.resetAndReadyAbility(entity);
+    }}, entity.id);
+}}
+"""
+    }
+
+    return templates.get(template_type, "Invalid template type!")
+
 
 # Process each entity in the JSON
 for mob in data["advance_mob"]:
@@ -111,17 +185,20 @@ export const {to_camel_case(entity_name).upper()}_CONFIG = {{
         print(f"File already exists: {config_file_path}")
 
     # Generate handlers.js
-    switch_cases = "\n".join([generate_switch_case(entity_name_camel, attack["id"]) for attack in mob["attacks"]])
+    switch_cases = ",\n".join([generate_switch_case(entity_name_camel, attack["id"]) for attack in mob["attacks"]])
     handlers_content = f"""// Handlers for {entity_name_camel} Attacks
 import {{ {", ".join([entity_name_camel + to_camel_case(attack["id"]) for attack in mob["attacks"]])} }} from './functions';
-import * as maps from '../../eventManager/maps'
+import {{ identifier }} from '../../utils';
+
+const attackHandlers = new Map([
+{switch_cases}
+]);
 
 function handle{entity_name_camel}Attack(entity, attackId) {{
-    switch (attackId) {{
-{switch_cases}
-        default:
-            console.warn(`Unknown attack: ${{attackId}}`);
-    }}
+    if (entity.typeId !== identifier('{entity_name}')) return;
+
+    const attackHandler = attackHandlers.get(attackId);
+    if (attackHandler) attackHandler(entity);
 }}
 
 export const {to_camel_case(entity_name)} = [
@@ -141,12 +218,14 @@ export const {to_camel_case(entity_name)} = [
         print(f"File already exists: {handlers_file_path}")
 
     # Generate functions.js
-    function_templates = "\n".join([generate_function_template(entity_name_camel, attack["id"]) for attack in mob["attacks"]])
+    function_templates = "\n".join(
+        generate_function_template(entity_name, attack["id"], attack.get("attack_type", "basic")) 
+        for attack in mob["attacks"]
+    )
     functions_content = f"""// Function Definitions for {entity_name_camel} Attacks
 import {{ EntityDamageCause }} from "@minecraft/server";
 import * as utils from '../../utils/index';
 import {{ startCoroutineForBoss }} from "../../eventManager/CoroutineClass";
-import * as maps from '../../eventManager/maps'
 import {{ {to_camel_case(entity_name).upper()}_CONFIG }} from "./config"; \n
 {function_templates}
 """
