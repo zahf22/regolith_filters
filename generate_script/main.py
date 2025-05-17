@@ -99,16 +99,16 @@ export async function {to_camel_case(entity_name)}{to_camel_case(attack_id)}(ent
       entity.setProperty(utils.identifier('animations'), config.ANIMATION);
     }});
     utils.facePlayer(entity, 1);
-
-    const victims = utils.getRadiusEntity(entity, utils.getPosForward(entity, 2), config.RADIUS);
-    
     utils.delayExecute(config.ATTACK_TIME, () => {{
         utils.executeIfValid(entity, () => {{
-            for (let victim of victims) {{
-                if (victim.id === entity.id) return;
-                victim.applyDamage(damage, {{ cause: EntityDamageCause.entityAttack, damagingEntity: entity, }})
-                utils.normalizedKnockBack(entity.location, victim, 0.3, 2.6, 'right');
-            }}
+            utils.getTargets(entity, {{
+                position: utils.getPosForward(entity, 2),
+                radius: config.RADIUS,
+                callback: (victim) => {{
+                    victim.applyDamage(damage, {{ cause: EntityDamageCause.entityAttack, damagingEntity: entity }})
+                    utils.normalizedKnockBack(entity.location, victim, 0.3, 2.6, 'default');
+                }}
+            }})
         }});
     }});
 }}
@@ -130,11 +130,14 @@ export async function {to_camel_case(entity_name)}{to_camel_case(attack_id)}(ent
         utils.facePlayer(entity, (0.56 * 20));
         yield (0.56 * 20);
         utils.applyImpulse(entity, 1.3, 8.2, -6);
-        const victims = utils.getRadiusEntity(entity, utils.getPosForward(entity, 2), config.RADIUS + 3);
-        for (let victim of victims) {{
-            if (victim.id === entity.id) return;
-            utils.normalizedKnockBack(entity.location, victim, 0.2, 1.7, 'default');
-        }}
+        utils.getTargets(entity, {{
+            position: utils.getPosForward(entity, 2),
+            radius: (config.RADIUS + 3),
+            target: "multiple",
+            callback: (victim) => {{
+                utils.normalizedKnockBack(entity.location, victim, 0.2, 1.7, 'default');
+            }}
+        }})
         utils.addEffect(entity, 'slow_falling', 3, 1);
         yield 20;
         while (!entity.isOnGround) {{
@@ -145,13 +148,13 @@ export async function {to_camel_case(entity_name)}{to_camel_case(attack_id)}(ent
         }};
 
         yield (2.96 * 20);
+    }}.bind(this);
+
+    startCoroutineForBoss(active, () => {{
         if (!entity.isValid()) return;
         entity.addTag(utils.identifier('{attack_id}'));
         const setCoolDown = Date.now() + 100 * config.CAST_DURATION + config.COOLDOWN;
         utils.setAbilityCooldown(entity.id, '{attack_id}', setCoolDown);
-    }}.bind(this);
-
-    startCoroutineForBoss(active, () => {{
         utils.resetAndReadyAbility(entity);
     }}, entity.id);
 }}
