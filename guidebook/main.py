@@ -281,11 +281,11 @@ def main():
 
     # Save files
     short_path = settings.get('short_path', '')
-    base_path = behavior_pack.input_path
+    base_path = '../../packs'
 
     file = 'guidebook.zip'
     output_path = os.path.join(base_path, 'scripts', '5fs', 'apt')
-    unzip_file(file, '../../packs/guidebook', output_path)
+    unzip_file(file, '../cache/filters/guidebook', output_path)
     save_translation_file(base_path, short_path, "block_translations.js", block_object_str)
     save_translation_file(base_path, short_path, "item_translations.js", item_object_str)
     save_translation_file(base_path, short_path, "recipe_translations.js", recipe_object_str)
