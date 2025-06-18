@@ -1,0 +1,10 @@
+{
+    "description": "Guidebook Files",
+    "filters": [
+        {
+            "runWith": "python",
+            "script": "./main.py",
+            "name": "Guidebook Files"
+        }
+    ]
+}
