@@ -299,6 +299,39 @@ def main():
         else:
             pass
             # print(f"{block_name}: no recipe property found")
+            
+    # Example: associating recipe key in block translations if applicable
+    for item_name, item_data in item_translations.items():
+        recipe_id = item_data.get('recipe')
+        
+        if recipe_id:
+            if recipe_id in recipe_translations_filtered:
+                key_value = recipe_translations_filtered[recipe_id].get('key', None)
+                pattern = recipe_translations_filtered[recipe_id].get('pattern', None)
+                print(f"Before assignment: {item_translations_filtered[item_name]}")
+                
+                # Check if key_value is a string (JSON)
+                if isinstance(key_value, str):
+                    try:
+                        recipe_obj = json.loads(key_value)
+                    except json.JSONDecodeError:
+                        # Handle the case where JSON parsing fails
+                        print(f"Failed to parse JSON for recipe ID '{recipe_id}'")
+                        recipe_obj = key_value  # fallback to original
+                else:
+                    # key_value is already a dict
+                    recipe_obj = key_value
+                
+                # Assign the parsed object
+                item_translations_filtered[item_name]['recipe'] = recipe_obj
+                # Map pattern grid if needed
+                item_translations_filtered[item_name]['pattern'] = map_pattern_grid(pattern)
+                print(f"After assignment: {item_translations_filtered[item_name]}")
+            else:
+                print(f"{item_name}: recipe ID '{recipe_id}' not in recipeTranslations")
+        else:
+            pass
+            # print(f"{block_name}: no recipe property found")
 
     # Generate JS strings
     entity_object_str = generate_js_object_str(entity_translations_filtered, "blockTranslations")
