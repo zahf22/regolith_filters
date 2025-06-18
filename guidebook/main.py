@@ -13,31 +13,23 @@ def unzip_file(file, input_path, output_path):
     print(f"Attempting to unzip: {zip_path}")
     print(f"Output directory: {output_path}")
 
-    # Ensure the output directory exists
     os.makedirs(output_path, exist_ok=True)
 
     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
         for member in zip_ref.infolist():
             member_path = os.path.join(output_path, member.filename)
-
-            # Check if file already exists
             if os.path.exists(member_path):
                 print(f"File '{member.filename}' already exists. Skipping extraction.")
                 continue
-
-            # Ensure the directory exists
             os.makedirs(os.path.dirname(member_path), exist_ok=True)
-
-            # Extract the file
             try:
                 with zip_ref.open(member) as source, open(member_path, 'wb') as target:
                     target.write(source.read())
                 print(f"Extracted '{member.filename}'.")
             except Exception as e:
                 print(f"Error extracting '{member.filename}': {e}")
-
         print(f"Finished processing zip archive: {zip_path}")
-        
+
 def get_jsonpath(data, path, default=None):
     keys = [k for k in path.strip('/').split('/') if k]
     current = data
@@ -74,7 +66,7 @@ def get_json_value(asset, path, should_pop):
             return asset.pop_jsonpath(path)
         else:
             return get_jsonpath(asset.data, path)
-    except Exception as e:
+    except Exception:
         return None
 
 def assign_translation_value(path, value, translation_dict, key_list):
@@ -92,32 +84,26 @@ def process_asset(asset, jsonpaths_list, key_list):
     return translation_data
 
 def gather_translations(
-    assets: List[JsonFileResource],
+    assets: List,  # Changed to generic list, since reticulator.AssetType isn't specified
     settings: dict,
     jsonpaths_list: List[List[NameJsonPath]],
     ignored_namespaces: List[str],
     key_list: List[str],
-) -> Dict[str, Dict[str, str]]:
-    all_translations: Dict[str, Dict[str, str]] = {}
-    auto_name = settings.get('auto_name', False)
-
+) -> Dict[str, Dict]:
+    all_translations: Dict[str, Dict] = {}
     for asset in assets:
         try:
             identifier = asset.identifier
-        except AssetNotFoundError:
+        except:
             continue
-
         namespace = identifier.split(':')[0] if ':' in identifier else ''
         if namespace in ignored_namespaces:
             continue
-
         short_id = identifier.split(':')[1]
         if short_id not in all_translations:
             all_translations[short_id] = {}
-
         translation_info = process_asset(asset, jsonpaths_list, key_list)
         all_translations[short_id].update(translation_info)
-
     return all_translations
 
 def save_translation_file(base_path, subfolder, filename, content):
@@ -159,7 +145,6 @@ def generate_js_object_str(translations_filtered, var_name):
 def map_pattern_grid(patterns):
     slot_mapping = {}
     slot_number = 1
-    
     for row in patterns:
         for ch in row:
             key = f"slot_{slot_number}"
@@ -168,15 +153,39 @@ def map_pattern_grid(patterns):
             else:
                 slot_mapping[key] = None
             slot_number += 1
-            
     return slot_mapping
+
+# Modular function to process recipes and assign to translations
+def apply_recipe_logic(translations, filtered_translations, recipe_lookup, map_pattern_func=map_pattern_grid):
+    for name, data in list(translations.items()):
+        if name in filtered_translations:
+            continue
+        recipe_id = data.get('recipe')
+        if recipe_id:
+            if recipe_id in recipe_lookup:
+                key_value = recipe_lookup[recipe_id].get('key')
+                pattern = recipe_lookup[recipe_id].get('pattern')
+                # Parse JSON if key_value is a string
+                if isinstance(key_value, str):
+                    try:
+                        recipe_obj = json.loads(key_value)
+                    except json.JSONDecodeError:
+                        print(f"Failed to parse JSON for recipe ID '{recipe_id}'")
+                        recipe_obj = key_value
+                else:
+                    recipe_obj = key_value
+                filtered_translations[name] = filtered_translations.get(name, {})
+                filtered_translations[name]['recipe'] = recipe_obj
+                filtered_translations[name]['pattern'] = map_pattern_func(pattern)
+            else:
+                print(f"{name}: recipe ID '{recipe_id}' not in recipe lookup.")
+    return
 
 def main():
     # Load settings
     try:
         settings = json.loads(sys.argv[1])
-    except IndexError:
-        #print("Warning: No settings provided. Using default settings.")
+    except:
         settings = {}
 
     ignored_namespaces = settings.get("ignored_namespaces", ['minecraft'])
@@ -185,119 +194,63 @@ def main():
     behavior_pack = project.behavior_pack
     resource_pack = project.resource_pack
 
-    # --- Generate NameJsonPath objects dynamically based on key_list ---
-
     key_list = settings.get("key_list", [])
 
-    # For blocks
-    block_jsonpaths = []
-    for key in key_list:
-        path = f"minecraft:block/description/{key}"
-        block_jsonpaths.append(NameJsonPath(path, True, False))
+    # Generate NameJsonPath objects
+    entity_jsonpaths = [NameJsonPath(f"minecraft:entity/description/{k}", True, False) for k in key_list]
+    entity_jsonpaths_list = [entity_jsonpaths]
+
+    block_jsonpaths = [NameJsonPath(f"minecraft:block/description/{k}", True, False) for k in key_list]
     block_jsonpaths_list = [block_jsonpaths]
 
-    # For recipes
-    recipe_jsonpaths = []
-    for key in key_list:
-        path = f"minecraft:recipe_shaped/{key}"
-        recipe_jsonpaths.append(NameJsonPath(path, False, False))
+    recipe_jsonpaths = [NameJsonPath(f"minecraft:recipe_shaped/{k}", False, False) for k in key_list]
     recipe_jsonpaths_list = [recipe_jsonpaths]
 
-    # For items
-    item_jsonpaths = []
-    for key in key_list:
-        path = f"minecraft:item/description/{key}"
-        item_jsonpaths.append(NameJsonPath(path, True, False))
+    item_jsonpaths = [NameJsonPath(f"minecraft:item/description/{k}", True, False) for k in key_list]
     item_jsonpaths_list = [item_jsonpaths]
 
-    # Gather block translations
-    block_translations = gather_translations(
-        behavior_pack.blocks,
-        settings.get("blocks", {}),
-        block_jsonpaths_list,
-        ignored_namespaces,
-        key_list
-    )
-
-    # Gather recipe translations
-    recipe_translations = gather_translations(
-        behavior_pack.recipes,
-        settings.get("recipes", {}),
-        recipe_jsonpaths_list,
-        ignored_namespaces,
-        key_list
-    )
-
-    # Gather item translations
-    item_translations = gather_translations(
-        behavior_pack.items,
-        settings.get("items", {}),
-        item_jsonpaths_list,
-        ignored_namespaces,
-        key_list
-    )
+    # Gather translations
+    entity_translations = gather_translations(behavior_pack.entities, settings.get("entity", {}), entity_jsonpaths_list, ignored_namespaces, key_list)
+    block_translations = gather_translations(behavior_pack.blocks, settings.get("blocks", {}), block_jsonpaths_list, ignored_namespaces, key_list)
+    recipe_translations = gather_translations(behavior_pack.recipes, settings.get("recipes", {}), recipe_jsonpaths_list, ignored_namespaces, key_list)
+    item_translations = gather_translations(behavior_pack.items, settings.get("items", {}), item_jsonpaths_list, ignored_namespaces, key_list)
 
     # Filter entries
-    block_translations_filtered = filter_entries_with_props(block_translations)
     recipe_translations_filtered = filter_entries_with_props(recipe_translations)
+    entity_translations_filtered = filter_entries_with_props(entity_translations)
+    block_translations_filtered = filter_entries_with_props(block_translations)
     item_translations_filtered = filter_entries_with_props(item_translations)
 
-    # --- Build recipe_lookup from recipe assets ---
+    # Build recipe lookup
     recipe_lookup = {}
     for recipe_asset in behavior_pack.recipes:
-        recipe_id = recipe_asset.identifier  # e.g., 'minecraft:some_recipe'
+        recipe_id = recipe_asset.identifier
         recipe_data = recipe_asset.data
         if isinstance(recipe_data, dict) and 'key' in recipe_data:
-            recipe_lookup[recipe_id] = recipe_data['key']
+            recipe_lookup[recipe_id] = {'key': recipe_data['key'], 'pattern': recipe_data.get('pattern')}
 
-    # Example: associating recipe key in block translations if applicable
-    for block_name, block_data in block_translations.items():
-        recipe_id = block_data.get('recipe')
-        
-        if recipe_id:
-            if recipe_id in recipe_translations_filtered:
-                key_value = recipe_translations_filtered[recipe_id].get('key', None)
-                pattern = recipe_translations_filtered[recipe_id].get('pattern', None)
-                print(f"Before assignment: {block_translations_filtered[block_name]}")
-                
-                # Check if key_value is a string (JSON)
-                if isinstance(key_value, str):
-                    try:
-                        recipe_obj = json.loads(key_value)
-                    except json.JSONDecodeError:
-                        # Handle the case where JSON parsing fails
-                        print(f"Failed to parse JSON for recipe ID '{recipe_id}'")
-                        recipe_obj = key_value  # fallback to original
-                else:
-                    # key_value is already a dict
-                    recipe_obj = key_value
-                
-                # Assign the parsed object
-                block_translations_filtered[block_name]['recipe'] = recipe_obj
-                # Map pattern grid if needed
-                block_translations_filtered[block_name]['pattern'] = map_pattern_grid(pattern)
-                print(f"After assignment: {block_translations_filtered[block_name]}")
-            else:
-                print(f"{block_name}: recipe ID '{recipe_id}' not in recipeTranslations")
-        else:
-            pass
-            # print(f"{block_name}: no recipe property found")
+    # Apply recipe logic to blocks
+    apply_recipe_logic(block_translations, block_translations_filtered, recipe_lookup)
+    # Apply recipe logic to items
+    apply_recipe_logic(item_translations, item_translations_filtered, recipe_lookup)
+    # Apply recipe logic to entities (if needed)
+    apply_recipe_logic(entity_translations, entity_translations_filtered, recipe_lookup)
 
     # Generate JS strings
+    entity_object_str = generate_js_object_str(entity_translations_filtered, "entityTranslations")
     block_object_str = generate_js_object_str(block_translations_filtered, "blockTranslations")
     item_object_str = generate_js_object_str(item_translations_filtered, "itemTranslations")
-    recipe_object_str = generate_js_object_str(recipe_translations_filtered, "recipeTranslations")
 
     # Save files
     short_path = settings.get('short_path', '')
     base_path = '../../packs'
 
+    save_translation_file(base_path, short_path, "entity_translations.js", entity_object_str)
+    save_translation_file(base_path, short_path, "block_translations.js", block_object_str)
+    save_translation_file(base_path, short_path, "item_translations.js", item_object_str)
     file = 'guidebook.zip'
     output_path = os.path.join(base_path, 'scripts', '5fs', 'apt')
     unzip_file(file, '../cache/filters/guidebook', output_path)
-    save_translation_file(base_path, short_path, "block_translations.js", block_object_str)
-    save_translation_file(base_path, short_path, "item_translations.js", item_object_str)
-    save_translation_file(base_path, short_path, "recipe_translations.js", recipe_object_str)
 
     # Save project
     project.save()
