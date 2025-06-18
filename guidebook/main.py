@@ -16,18 +16,27 @@ def unzip_file(file, input_path, output_path):
     # Ensure the output directory exists
     os.makedirs(output_path, exist_ok=True)
 
-    try:
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(output_path)
-        print(f"Successfully extracted {zip_path} to {output_path}")
-    except zipfile.BadZipFile:
-        print(f"Error: The file {zip_path} is not a valid zip file.")
-    except FileNotFoundError:
-        print(f"Error: The zip file {zip_path} was not found.")
-    except PermissionError:
-        print(f"Error: Permission denied when accessing {zip_path} or {output_path}.")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        for member in zip_ref.infolist():
+            member_path = os.path.join(output_path, member.filename)
+
+            # Check if file already exists
+            if os.path.exists(member_path):
+                print(f"File '{member.filename}' already exists. Skipping extraction.")
+                continue
+
+            # Ensure the directory exists
+            os.makedirs(os.path.dirname(member_path), exist_ok=True)
+
+            # Extract the file
+            try:
+                with zip_ref.open(member) as source, open(member_path, 'wb') as target:
+                    target.write(source.read())
+                print(f"Extracted '{member.filename}'.")
+            except Exception as e:
+                print(f"Error extracting '{member.filename}': {e}")
+
+        print(f"Finished processing zip archive: {zip_path}")
         
 def get_jsonpath(data, path, default=None):
     keys = [k for k in path.strip('/').split('/') if k]
