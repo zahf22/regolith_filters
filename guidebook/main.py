@@ -230,11 +230,11 @@ def main():
             recipe_lookup[recipe_id] = {'key': recipe_data['key'], 'pattern': recipe_data.get('pattern')}
 
     # Apply recipe logic to blocks
-    apply_recipe_logic(block_translations, block_translations_filtered, recipe_lookup)
+    apply_recipe_logic(recipe_translations_filtered, block_translations_filtered, recipe_lookup)
     # Apply recipe logic to items
-    apply_recipe_logic(item_translations, item_translations_filtered, recipe_lookup)
+    apply_recipe_logic(recipe_translations_filtered, item_translations_filtered, recipe_lookup)
     # Apply recipe logic to entities (if needed)
-    apply_recipe_logic(entity_translations, entity_translations_filtered, recipe_lookup)
+    apply_recipe_logic(recipe_translations_filtered, entity_translations_filtered, recipe_lookup)
 
     # Generate JS strings
     entity_object_str = generate_js_object_str(entity_translations_filtered, "entityTranslations")
