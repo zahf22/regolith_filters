@@ -113,7 +113,7 @@ export async function {to_camel_case(entity_name)}{to_camel_case(attack_id)}(ent
     }});
 }}
 """,
-        "courotine": f"""
+        "coroutine": f"""
 export async function {to_camel_case(entity_name)}{to_camel_case(attack_id)}(entity) {{
     const config = {to_camel_case(entity_name).upper()}_CONFIG.{attack_id.upper()};
     utils.tipPlayer(entity, config.TIP_DURATION, config.TIP_MESSAGE);
