@@ -106,7 +106,7 @@ export async function {to_camel_case(entity_name)}{to_camel_case(attack_id)}(ent
                 radius: config.RADIUS,
                 callback: (victim) => {{
                     victim.applyDamage(damage, {{ cause: EntityDamageCause.entityAttack, damagingEntity: entity }})
-                    utils.normalizedKnockBack(entity.location, victim, 0.3, 2.6, 'default');
+                    utils.normalizedKnockBack(entity.location, victim, 0.1, 0.1, 'default');
                 }}
             }})
         }});
@@ -135,7 +135,7 @@ export async function {to_camel_case(entity_name)}{to_camel_case(attack_id)}(ent
             radius: (config.RADIUS + 3),
             target: "multiple",
             callback: (victim) => {{
-                utils.normalizedKnockBack(entity.location, victim, 0.2, 1.7, 'default');
+                utils.normalizedKnockBack(entity.location, victim, 0.1, 0.1, 'default');
             }}
         }})
         utils.addEffect(entity, 'slow_falling', 3, 1);
