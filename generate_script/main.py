@@ -83,7 +83,7 @@ def generate_function_template(entity_name, attack_id, template_type):
             return (
                 "entity.addTag(utils.identifier(config.ANIMATION));\n"
                 "const setCoolDown = Date.now() + 100 * config.CAST_DURATION + config.COOLDOWN;\n"
-                "utils.setAbilityCooldown(entity.id, '{attack_id}', setCoolDown);"
+                "utils.setAbilityCooldown(entity.id, config.ANIMATION, setCoolDown);"
             ).format(attack_id=attack_id)
         return ""
 
@@ -160,8 +160,7 @@ export async function {to_camel_case(entity_name)}{to_camel_case(attack_id)}(ent
     }}.bind(this);
 
     startCoroutineForBoss(active, () => {{
-        if (!entity.isValid()) return;
-        entity.addTag(utils.identifier('{attack_id}'));
+        if (!entity.isValid) return;
         {cooldown_code}
         utils.resetAndReadyAbility(entity);
     }}, entity.id);
