@@ -31,7 +31,6 @@ os.makedirs(base_output_dir, exist_ok=True)
 
 print(f"Output directory created (or already exists): {base_output_dir}")
 
-
 def to_camel_case(s):
     parts = s.split('_')
     return ''.join(word.capitalize() for word in parts)
@@ -40,19 +39,19 @@ def generate_attack_config(attack):
     """Generate configuration block for an attack."""
     excluded_keys = {"min_activation_range", "max_activation_range", "attack_type"}
     config_lines = []
-    
+
     config_key = None
     for key, value in attack.items():
         if key in excluded_keys:
             continue
-        
+
         if key == "id":
             # ID is treated as the key for this block, written in uppercase
             config_key = value.upper()
             continue
 
         if key == "damage_range" and isinstance(value, list):
-            # Ensure damage is represented as a proper array in the output
+            # Represent damage as an array
             config_value = f"[{', '.join(map(str, value))}]"
         elif isinstance(value, (int, float)):
             # Handle numeric values, including multiplication for durations
@@ -60,37 +59,32 @@ def generate_attack_config(attack):
         else:
             # Convert other types to strings
             config_value = f'"{value}"'
-        
+
         config_lines.append(f"        {key.upper()}: {config_value}")
 
-    # Check if a config key was set (necessary for valid output)
     if not config_key:
         raise ValueError("Missing 'id' key in attack configuration")
 
-    # Combine the configuration lines
     config_body = ",\n".join(config_lines)
     return f"""    {config_key}: {{
 {config_body}
     }}"""
 
 def generate_switch_case(entity_name, attack_id):
-    """Generate switch case for an attack."""
     return f"""    [identifier('{attack_id}'), {entity_name}{to_camel_case(attack_id)}]"""
 
 def to_camel_case(snake_str):
-    """Convert snake_case to CamelCase."""
     components = snake_str.split('_')
     return ''.join(x.title() for x in components)
 
 def generate_function_template(entity_name, attack_id, template_type):
-    """Generate function template for an attack based on the template type."""
     def build_cooldown_code(config, attack_id):
-        if config.get('COOLDOWN', 0) > 0:
-            set_coolDown_line = (
-                "const setCoolDown = Date.now() + 100 * config.CAST_DURATION + config.COOLDOWN;"
-                "\nutils.setAbilityCooldown(entity.id, '{attack_id}', setCoolDown);"
+        if config.get('cooldown', 0) > 0:
+            return (
+                "entity.addTag(utils.identifier(config.ANIMATION));\n"
+                "const setCoolDown = Date.now() + 100 * config.CAST_DURATION + config.COOLDOWN;\n"
+                "utils.setAbilityCooldown(entity.id, '{attack_id}', setCoolDown);"
             ).format(attack_id=attack_id)
-            return set_coolDown_line
         return ""
 
     if template_type == "basic":
@@ -102,7 +96,6 @@ export async function {to_camel_case(entity_name)}{to_camel_case(attack_id)}(ent
     const damage = utils.randomInt(...config.DAMAGE_RANGE);
     utils.delayExecute(config.CAST_DURATION, () => {{
         utils.executeIfValid(entity, () => {{
-            entity.addTag(utils.identifier(config.ANIMATION));
             {cooldown_code}
             utils.resetAndReadyAbility(entity);
         }});
@@ -174,7 +167,6 @@ export async function {to_camel_case(entity_name)}{to_camel_case(attack_id)}(ent
     }}, entity.id);
 }}
 """
-            return template
         return template
 
     return "Invalid template type!"
@@ -194,7 +186,7 @@ export const {to_camel_case(entity_name).upper()}_CONFIG = {{
 {attack_configs}
 }};
 """
-    # For config.js
+    # Write config.js
     config_file_path = os.path.join(entity_folder, "config.js")
     if not os.path.exists(config_file_path):
         with open(config_file_path, "w") as config_file:
@@ -228,6 +220,7 @@ export const {to_camel_case(entity_name)} = [
     }}
 ];
 """
+    # Write handlers.js
     handlers_file_path = os.path.join(entity_folder, "handlers.js")
     if not os.path.exists(handlers_file_path):
         with open(handlers_file_path, "w") as handlers_file:
@@ -237,7 +230,7 @@ export const {to_camel_case(entity_name)} = [
 
     # Generate functions.js
     function_templates = "\n".join(
-        generate_function_template(entity_name, attack["id"], attack.get("attack_type", "basic")) 
+        generate_function_template(entity_name, attack["id"], attack.get("attack_type", "basic"))(attack)
         for attack in mob["attacks"]
     )
     functions_content = f"""// Function Definitions for {entity_name_camel} Attacks
@@ -247,7 +240,7 @@ import {{ startCoroutineForBoss }} from "../../eventManager/CoroutineClass";
 import {{ {to_camel_case(entity_name).upper()}_CONFIG }} from "./config"; \n
 {function_templates}
 """
-    # For functions.js
+    # Write functions.js
     functions_file_path = os.path.join(entity_folder, "functions.js")
     if not os.path.exists(functions_file_path):
         with open(functions_file_path, "w") as functions_file:
