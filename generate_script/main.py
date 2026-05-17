@@ -84,16 +84,26 @@ def to_camel_case(snake_str):
 
 def generate_function_template(entity_name, attack_id, template_type):
     """Generate function template for an attack based on the template type."""
-    templates = {
-        "basic": f"""
+    def build_cooldown_code(config, attack_id):
+        if config.get('COOLDOWN', 0) > 0:
+            set_coolDown_line = (
+                "const setCoolDown = Date.now() + 100 * config.CAST_DURATION + config.COOLDOWN;"
+                "\nutils.setAbilityCooldown(entity.id, '{attack_id}', setCoolDown);"
+            ).format(attack_id=attack_id)
+            return set_coolDown_line
+        return ""
+
+    if template_type == "basic":
+        def template(config):
+            cooldown_code = build_cooldown_code(config, attack_id)
+            return f"""
 export async function {to_camel_case(entity_name)}{to_camel_case(attack_id)}(entity) {{
     const config = {to_camel_case(entity_name).upper()}_CONFIG.{attack_id.upper()};
     const damage = utils.randomInt(...config.DAMAGE_RANGE);
     utils.delayExecute(config.CAST_DURATION, () => {{
         utils.executeIfValid(entity, () => {{
             entity.addTag(utils.identifier(config.ANIMATION));
-            {{"const setCoolDown = Date.now() + 100 * config.CAST_DURATION + config.COOLDOWN;" if 'COOLDOWN' in 'config' and config['COOLDOWN'] > 0 else ""}}
-            utils.setAbilityCooldown(entity.id, config.ANIMATION, setCoolDown);
+            {cooldown_code}
             utils.resetAndReadyAbility(entity);
         }});
     }});
@@ -115,8 +125,12 @@ export async function {to_camel_case(entity_name)}{to_camel_case(attack_id)}(ent
         }});
     }});
 }}
-""",
-        "coroutine": f"""
+"""
+        return template
+    elif template_type == "coroutine":
+        def template(config):
+            cooldown_code = build_cooldown_code(config, attack_id)
+            return f"""
 export async function {to_camel_case(entity_name)}{to_camel_case(attack_id)}(entity) {{
     const config = {to_camel_case(entity_name).upper()}_CONFIG.{attack_id.upper()};
     utils.facePlayer(entity, 1);
@@ -155,16 +169,15 @@ export async function {to_camel_case(entity_name)}{to_camel_case(attack_id)}(ent
     startCoroutineForBoss(active, () => {{
         if (!entity.isValid()) return;
         entity.addTag(utils.identifier('{attack_id}'));
-        const setCoolDown = Date.now() + 100 * config.CAST_DURATION + config.COOLDOWN;
-        utils.setAbilityCooldown(entity.id, '{attack_id}', setCoolDown);
+        {cooldown_code}
         utils.resetAndReadyAbility(entity);
     }}, entity.id);
 }}
 """
-    }
+            return template
+        return template
 
-    return templates.get(template_type, "Invalid template type!")
-
+    return "Invalid template type!"
 
 # Process each entity in the JSON
 for mob in data["advance_mob"]:
