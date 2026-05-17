@@ -56,7 +56,7 @@ def generate_attack_config(attack):
             config_value = f"[{', '.join(map(str, value))}]"
         elif isinstance(value, (int, float)):
             # Handle numeric values, including multiplication for durations
-            config_value = int(value * 20) if key in {"cast_duration", "tip_duration", "attack_time"} else value
+            config_value = int(value * 20) if key in {"cast_duration", "attack_time", "attack_time_1"} else value
         else:
             # Convert other types to strings
             config_value = f'"{value}"'
@@ -116,7 +116,6 @@ export async function {to_camel_case(entity_name)}{to_camel_case(attack_id)}(ent
         "coroutine": f"""
 export async function {to_camel_case(entity_name)}{to_camel_case(attack_id)}(entity) {{
     const config = {to_camel_case(entity_name).upper()}_CONFIG.{attack_id.upper()};
-    utils.tipPlayer(entity, config.TIP_DURATION, config.TIP_MESSAGE);
     utils.facePlayer(entity, 1);
 
     utils.resetFamilyAttack(entity, ['{entity_name}']);
