@@ -56,7 +56,7 @@ def generate_attack_config(attack):
             config_value = f"[{', '.join(map(str, value))}]"
         elif isinstance(value, (int, float)):
             # Handle numeric values, including multiplication for durations
-            config_value = int(value * 20) if key in {"cast_duration", "attack_time", "attack_time_1"} else value
+            config_value = int(value * 20) if key in {"cast_duration", "attack_time", "attack_time_1", "attack_time_2", "attack_time_3"} else value
         else:
             # Convert other types to strings
             config_value = f'"{value}"'
@@ -91,7 +91,10 @@ export async function {to_camel_case(entity_name)}{to_camel_case(attack_id)}(ent
     const damage = utils.randomInt(...config.DAMAGE_RANGE);
     utils.delayExecute(config.CAST_DURATION, () => {{
         utils.executeIfValid(entity, () => {{
-        utils.resetAndReadyAbility(entity);
+            entity.addTag(utils.identifier(config.ANIMATION));
+            const setCoolDown = Date.now() + 100 * config.CAST_DURATION + config.COOLDOWN;
+            utils.setAbilityCooldown(entity.id, config.ANIMATION, setCoolDown);
+            utils.resetAndReadyAbility(entity);
         }});
     }});
     utils.resetFamilyAttack(entity, ['{entity_name}']);
