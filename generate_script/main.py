@@ -92,7 +92,7 @@ export async function {to_camel_case(entity_name)}{to_camel_case(attack_id)}(ent
     utils.delayExecute(config.CAST_DURATION, () => {{
         utils.executeIfValid(entity, () => {{
             entity.addTag(utils.identifier(config.ANIMATION));
-            const setCoolDown = Date.now() + 100 * config.CAST_DURATION + config.COOLDOWN;
+            {"const setCoolDown = Date.now() + 100 * config.CAST_DURATION + config.COOLDOWN;" if 'COOLDOWN' in 'config' and config['COOLDOWN'] > 0 else ""}
             utils.setAbilityCooldown(entity.id, config.ANIMATION, setCoolDown);
             utils.resetAndReadyAbility(entity);
         }});
